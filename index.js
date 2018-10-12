@@ -1,3 +1,8 @@
+function isPrimitive(arg) {
+    const type = typeof arg;
+    return arg === null || (type !== 'object' && type != 'function');
+}
+
 class Packer {
     /**
      * Ininialize store
@@ -16,14 +21,24 @@ class Packer {
      * @param {String} storeKey specific name for object
      */
     take(obj, storeKey) {
-        if(typeof obj !== 'object' || obj === null) return obj;
+        if(isPrimitive(obj)) return obj;
 
         if(obj.__packId === undefined) {
             let id = storeKey || this._counter++;
             this._store[id] = Object.defineProperty(obj, '__packId', {
                 value : id,
-                writable : false
+                writable : false,
             });
+        }
+
+        // TODO. Try move to _pack
+        for(const key in obj) {
+            if(!obj.hasOwnProperty(key) ||
+                isPrimitive(obj[key]) ||
+                obj[key].__packId
+            ) continue;
+
+            this.take(obj[key]);
         }
 
         return { __packId : obj.__packId };
@@ -38,18 +53,20 @@ class Packer {
     }
 
     _pack(obj) {
-        if(!obj) { obj = this._store };
-
-        if(typeof obj !== 'object' || !obj) return obj;
+        if(isPrimitive(obj)) return obj;
 
         for(const key in obj) {
-            if(!obj.hasOwnProperty(key))  continue;
+            if(!obj.hasOwnProperty(key)
+                || isPrimitive(obj[key])
+                || obj[key].__packed
+            ) continue;
 
-            if(obj[key].__packed) continue;
-
-            if(this._store[key] !== obj[key] && obj[key].__packId) {
+            if(this._store[key] !== obj[key]) {
                 obj[key] = Object.defineProperties({}, {
-                    __packed :  { value : true, writable : false },
+                    __packed :  {
+                        value : true,
+                        writable : false
+                    },
                     __packId : {
                         value : obj[key].__packId,
                         writable : false,
@@ -72,18 +89,22 @@ class Packer {
     }
 
     _unpack(obj) {
-        if(!obj) { obj = this._store };
-
-        if(typeof obj !== 'object' || !obj) return obj;
+        if(isPrimitive(obj)) return obj;
 
         for(const key in obj) {
-            if(!obj.hasOwnProperty(key) || obj[key].__unpacked) continue;
+            if(!obj.hasOwnProperty(key)
+                || isPrimitive(obj[key])
+                || obj[key].__unpacked
+            ) continue;
 
             const packId = obj[key].__packId;
 
-            if(packId) obj[key] = Object.defineProperty(this._store[packId], '__unpacked', {
-                value : true, writable : false
-            });
+            if(packId !== undefined) {
+                obj[key] = Object.defineProperty(this._store[packId], '__unpacked', {
+                    value : true,
+                    writable : false,
+                });
+            }
 
             this._unpack(obj[key]);
         }
