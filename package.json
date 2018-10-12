@@ -1,0 +1,25 @@
+{
+  "name": "objects-packer",
+  "version": "0.0.1",
+  "description": "Packing and unpacking objects with save links between them",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/belozer/objects-packer.git"
+  },
+  "keywords": [
+    "objects",
+    "json",
+    "stringify",
+    "struct"
+  ],
+  "author": "Sergey Belozyorcev",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/belozer/objects-packer/issues"
+  },
+  "homepage": "https://github.com/belozer/objects-packer#readme"
+}
