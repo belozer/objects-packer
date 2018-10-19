@@ -7,145 +7,210 @@ function isDefined(v) {
     return v !== undefined;
 }
 
+class PackerNode {
+    constructor(obj, packer, isPacked = false) {
+        Object.defineProperty(obj, '__packerNode', { value : this });
+        this.pos = null;
+
+        this._obj = obj;
+        this._id = packer.newId();
+        this._packer = packer;
+
+        this._links = new Set();
+
+        this._isPacked = isPacked;
+        this._isWalked = false;
+    }
+
+
+    get id() {
+        return this._id;
+    }
+
+    /**
+     * Returns clone of raw object if present
+     */
+    get obj() {
+        return this._packed || this._obj;
+    }
+
+    get packed() {
+        if(!this._packed) this._packed = Array.isArray(this._obj)?
+            this._obj.slice() : Object.assign({}, this._obj);
+
+        return this._packed;
+    }
+
+    get childs() {
+        return this._childs || (this._childs = new Map());
+    }
+
+    get parents() {
+        return this._parents || (this._parents = new Map());
+    }
+
+    addParent(node, propName) {
+        let stored = this.parents.get(node) || [];
+        this.parents.set(node, stored.concat([propName]));
+        this._links.add(node.id + '.' + propName);
+
+        node.addChild(this);
+    }
+
+    addChild(node) {
+        this.childs.set(node);
+    }
+
+    pack() {
+        if(this._isPacked) return;
+        this._isPacked = true;
+
+        for(const [child] of this.childs) child.pack();
+
+        if(this._links.size > 1) {
+            this._packer.take(this._obj, null, this._links.size);
+        }
+
+        for(const [node, props] of this.parents) {
+            for(const prop of props) {
+                if(this.pos) {
+                    node.packed[prop] = this._packer._options.prefix + this.pos;
+                    continue;
+                }
+
+                node.packed[prop] = this.obj;
+            }
+        }
+    }
+
+    unpack() {
+        if(!this._isPacked) return;
+        this._isPacked = false;
+
+        this.walk();
+        for(const [child] of this.childs) child.unpack();
+
+        for(const key in this._obj) {
+            if(!this._obj.hasOwnProperty(key)) continue;
+
+            const pos = this._packer.extractKey(this._obj[key]);
+            if(pos !== null) this._obj[key] = this._packer.give(pos);
+        }
+    }
+
+    walk() {
+        if(this._isWalked) return;
+        this._isWalked = true;
+
+        const obj = this._obj;
+        for(let key in obj) {
+            if(!obj.hasOwnProperty(key) || isPrimitive(obj[key])) continue;
+
+            const node = PackerNode.getNode(obj[key], this._packer);
+
+            node.addParent(this, key);
+            node.walk();
+        }
+    }
+
+    static getNode(obj, packer, isPacked) {
+        return obj.__packerNode || new this(obj, packer, isPacked);
+    }
+}
+
 class Packer {
     /**
      * Ininialize store
      * @param {String|undefined} store with packs
      */
-    constructor(data = {}, options = {}) {
-        if(typeof data == 'string') data = JSON.parse(data);
-
-        this._namedIds = data.namedIds || {};
-        this._store = data.store || {};
-        this._objInfo = new Map();
-
-        this._counter = 0;
+    constructor(pack = {}) {
+        this._names = pack.names || {};
+        this._store = pack.store || [];
+        this._storeStocks = pack.storeStocks || [];
 
         this._options = Object.assign({
             prefix : '…'
-        }, options);
+        }, pack.options);
 
-        this._reKey = new RegExp(`^${this._options.prefix}([0-9]*)$`);
+        this._counter = 0;
+
+        this._reKey = new RegExp(`^${this._options.prefix}([0-9]+)$`);
+
+        if(this._store.length) {
+            this._store = this._store.map((obj, i) => {
+                const node = PackerNode.getNode(obj, this, true);
+                node.pos = i;
+                return node;
+            });
+        }
+    }
+
+    newId() {
+        return ++this._counter;
+    }
+
+    extractKey(str) {
+        const res = this._reKey.exec(str);
+        return res? res[1] : null;
     }
 
     /**
      * Mark object for feature packing
      * @param {Object} obj object for packing
-     * @param {String} id specific name for object
+     * @param {String} name specific name for object
      */
-    take(obj, id) {
-        const node = this._take(obj);
-        this._namedIds[id] = node.__packId;
-        this._store[node.__packId] = node;
-        return node.__packId;
-    }
+    take(obj, objName, linkCount = 1) {
+        const node = PackerNode.getNode(obj, this);
 
-    _take(obj) {
-        if(isPrimitive(obj) || obj.__taked) return obj;
-
-        const id = this._counter++;
-        Object.defineProperties(obj, {
-            __packId : {
-                value : id,
-                writable : false,
-            },
-            __packParents : {
-                value : new Set(),
-            },
-            __taked : {
-                value : true,
-                writable : false
-            }
-        });
-
-        // TODO. Try move to _pack
-        for(const key in obj) {
-            if(!obj.hasOwnProperty(key) || isPrimitive(obj[key])) continue;
-
-            this._take(obj[key]).__packParents.add(id + '.' + key)
-            if(obj[key].__packParents.size > 1) {
-                this._store[obj[key].__packId] = obj[key];
-            }
+        let pos = node.pos;
+        if(pos === null) {
+            pos = this._store.push(node) - 1;
+            this._storeStocks[pos] = 0;
+            node.pos = pos;
         }
 
-        return obj;
+        this._storeStocks[pos] += linkCount;
+
+        if(objName) this._names[objName] = pos;
+
+        return node.pos;
     }
 
-    _exportKey(obj) {
-        return this._options.prefix + obj.__packId;
+    /**
+     * @param {Number|String} pos Name of position or position index
+     * @returns {?Object}
+     */
+    give(pos) {
+        pos = typeof pos === 'string'? this._names[pos] : pos;
+
+        const node = this._store[pos];
+        if(!node) return null;
+
+        if(node._isPacked) node.unpack();
+        if(--this._storeStocks < 1) delete this._store[pos];
+        return node.obj;
     }
 
     /**
      * Packing store with replace object keys
-     * @param {String|Number} key for pack specific tree
+     * @returns {Object} pack
      */
-    pack(key) {
-        // if(!key) key = 'root'
-        this._pack(key? this._store[key] : this._store);
-    }
+    pack() {
+        const len = this._store.length;
 
-    // TODO: Maybe need use another store for save packs...
-    // Current behavior is mutates global data
-    _pack(obj) {
-        if(isPrimitive(obj) || obj.__packed) return obj;
-
-        Object.defineProperties(obj, {
-            __packed :  {
-                value : true,
-                writable : false
-            }
-        });
-
-        for(const key in obj) {
-            if(!obj.hasOwnProperty(key)
-                || isPrimitive(obj[key])
-            ) continue;
-
-            this._pack(obj[key]);
-
-            if(this._store[key] != obj[key] && obj[key].__packParents.size > 1) {
-                obj[key] = this._exportKey(obj[key]);
-            }
+        for(let i = 0; i < len; i++) {
+            this._store[i].walk();
         }
-    }
-
-    /**
-     * Unpacking specific tree or all store
-     * @param {String|undefined} key
-     */
-    unpack(key) {
-        if(isDefined(this._namedIds[key])) key = this._namedIds[key];
-
-        return this._unpack(this._store[key] || this._store);
-    }
-
-    _unpack(obj) {
-        if(isPrimitive(obj) || obj.__unpacked) return obj;
-
-        Object.defineProperty(obj, '__unpacked', {
-            value : true,
-            writable : false,
-        });
-
-        for(const key in obj) {
-            if(!obj.hasOwnProperty(key)) continue;
-            this._unpack(obj[key]);
-
-            if(obj[key] === this._store[key]) continue;
-
-            const matches = this._reKey.exec(obj[key]);
-            if(matches) obj[key] = this._store[matches[1]]
+        for(let i = 0; i < len; i++) {
+            this._store[i].pack();
         }
 
-        return obj;
-    }
-
-    toString() {
-        this.pack();
-        return JSON.stringify({
-            namedIds : this._namedIds,
-            store : this._store
-        });
+        return {
+            options : this._options,
+            names : this._names,
+            storeStocks : this._storeStocks,
+            store : this._store.map(node => node.obj)
+        };
     }
 }
 
