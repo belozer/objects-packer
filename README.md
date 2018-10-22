@@ -1,3 +1,5 @@
+[![travis](http://img.shields.io/travis/belozer/objects-packer.svg?style=flat-square)](https://travis-ci.org/belozer/objects-packer)
+
 Objects Packer
 ==============
 
