@@ -4,7 +4,7 @@
   "description": "Packing and unpacking objects with save links between them",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha"
   },
   "repository": {
     "type": "git",
@@ -21,5 +21,8 @@
   "bugs": {
     "url": "https://github.com/belozer/objects-packer/issues"
   },
-  "homepage": "https://github.com/belozer/objects-packer#readme"
+  "homepage": "https://github.com/belozer/objects-packer#readme",
+  "devDependencies": {
+    "mocha": "^5.2.0"
+  }
 }
