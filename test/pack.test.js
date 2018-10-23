@@ -69,7 +69,10 @@ describe('Packer Pack', function() {
         });
 
         it('should save links between objects', () => {
-            assert.equal(unpacker.give('data').a, unpacker.give('data').b);
+            const data = unpacker.give('data');
+            assert.typeOf(data.a, 'array');
+            assert.typeOf(data.b, 'array');
+            assert.deepEqual(data.a, data.b);
         });
     });
 });

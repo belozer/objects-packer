@@ -93,7 +93,7 @@ class PackerNode {
         for(const key in this._obj) {
             if(!this._obj.hasOwnProperty(key)) continue;
 
-            const pos = this._packer.extractKey(this._obj[key]);
+            const pos = this._packer.extractPos(this._obj[key]);
             if(pos !== null) this._obj[key] = this._packer.give(pos);
         }
     }
@@ -149,9 +149,9 @@ class Packer {
         return ++this._counter;
     }
 
-    extractKey(str) {
+    extractPos(str) {
         const res = this._reKey.exec(str);
-        return res? res[1] : null;
+        return res? parseInt(res[1]) : null;
     }
 
     /**
