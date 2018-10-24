@@ -74,6 +74,12 @@ describe('Packer Pack', function() {
             assert.typeOf(data.b, 'array');
             assert.deepEqual(data.a, data.b);
         });
+
+        it('take should work after unpacking', () => {
+            const pos = unpacker.take(unpacker.give('data'));
+
+            assert.typeOf(pos, 'number');
+        });
     });
 });
 

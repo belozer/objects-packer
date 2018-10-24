@@ -187,7 +187,7 @@ class Packer {
         if(!node) return null;
 
         if(node._isPacked) node.unpack();
-        if(--this._storeStocks < 1) delete this._store[pos];
+        if(--this._storeStocks[pos] < 1) delete this._store[pos];
         return node.obj;
     }
 
