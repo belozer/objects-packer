@@ -61,7 +61,7 @@ describe('Packer Pack', function() {
         });
     });
 
-    describe('#unpack()', () => {
+    describe('#give()', () => {
         let unpacker;
         beforeEach(() => {
             packer.take(genInput(), 'data');
