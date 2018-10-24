@@ -16,7 +16,7 @@ class PackerNode {
         this._id = packer.newId();
         this._packer = packer;
 
-        this._links = new Set();
+        this.links = new Set();
 
         this._isPacked = isPacked;
         this._isWalked = false;
@@ -52,7 +52,7 @@ class PackerNode {
     addParent(node, propName) {
         let stored = this.parents.get(node) || [];
         this.parents.set(node, stored.concat([propName]));
-        this._links.add(node.id + '.' + propName);
+        this.links.add(node.id + '.' + propName);
 
         node.addChild(this);
     }
@@ -67,8 +67,8 @@ class PackerNode {
 
         for(const [child] of this.childs) child.pack();
 
-        if(this._links.size > 1) {
-            this._packer.take(this._obj, null, this._links.size);
+        if(this.links.size > 1) {
+            this._packer.take(this._obj, null, false);
         }
 
         for(const [node, props] of this.parents) {
@@ -158,9 +158,12 @@ class Packer {
      * Mark object for feature packing
      * @param {Object} obj object for packing
      * @param {String} name specific name for object
+     * @param {Boolean} [isRoot=true] false for sub take (when work pack)
      */
-    take(obj, objName, linkCount = 1) {
+    take(obj, objName, isRoot = true) {
         const node = PackerNode.getNode(obj, this);
+
+        isRoot && node.links.add('root');
 
         let pos = node.pos;
         if(pos === null) {
@@ -169,7 +172,11 @@ class Packer {
             node.pos = pos;
         }
 
-        this._storeStocks[pos] += linkCount;
+        this._storeStocks[pos] += isRoot
+            ? 1
+            : node.links.has('root')
+                ? node.links.size - 1
+                : node.links.size;
 
         if(objName) this._names[objName] = pos;
 
