@@ -83,12 +83,12 @@ class PackerNode {
         }
     }
 
-    unpack() {
-        if(!this._isPacked) return;
+    unpack(isChild = false) {
+        if(!isChild && !this._isPacked) return;
         this._isPacked = false;
 
         this.walk();
-        for(const [child] of this.childs) child.unpack();
+        for(const [child] of this.childs) child.unpack(true);
 
         for(const key in this._obj) {
             if(!this._obj.hasOwnProperty(key)) continue;
